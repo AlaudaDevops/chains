@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
@@ -191,7 +188,8 @@ func (p *logPolicy) writeHeader(b *bytes.Buffer, header http.Header) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		value := header.Get(k)
+		// don't use Get() as it will canonicalize k which might cause a mismatch
+		value := header[k][0]
 		// redact all header values not in the allow-list
 		if _, ok := p.allowedHeaders[strings.ToLower(k)]; !ok {
 			value = redactedValue

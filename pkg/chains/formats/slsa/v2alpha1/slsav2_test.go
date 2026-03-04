@@ -102,6 +102,7 @@ func TestTaskRunCreatePayload1(t *testing.T) {
 				Parameters: map[string]any{
 					"ComputeResources": (*corev1.ResourceRequirements)(nil),
 					"Debug":            (*v1beta1.TaskRunDebug)(nil),
+					"ManagedBy":        (*string)(nil),
 					"Params": v1beta1.Params{
 						{
 							Name:  "IMAGE",
@@ -217,6 +218,7 @@ func TestTaskRunCreatePayload2(t *testing.T) {
 				Parameters: map[string]any{
 					"ComputeResources": (*corev1.ResourceRequirements)(nil),
 					"Debug":            (*v1beta1.TaskRunDebug)(nil),
+					"ManagedBy":        (*string)(nil),
 					"Params": v1beta1.Params{
 						{
 							Name:  "url",
@@ -324,6 +326,7 @@ func TestMultipleSubjects(t *testing.T) {
 				Parameters: map[string]any{
 					"ComputeResources":   (*corev1.ResourceRequirements)(nil),
 					"Debug":              (*v1beta1.TaskRunDebug)(nil),
+					"ManagedBy":          (*string)(nil),
 					"Params":             v1beta1.Params{},
 					"PodTemplate":        (*pod.Template)(nil),
 					"Resources":          (*v1beta1.TaskRunResources)(nil),

@@ -191,6 +191,7 @@ status:
 			},
 			"ComputeResources":   (*corev1.ResourceRequirements)(nil),
 			"Debug":              (*v1beta1.TaskRunDebug)(nil),
+			"ManagedBy":          (*string)(nil),
 			"PodTemplate":        (*pod.Template)(nil),
 			"Resources":          (*v1beta1.TaskRunResources)(nil),
 			"Retries":            0,

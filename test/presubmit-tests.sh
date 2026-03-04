@@ -27,7 +27,7 @@ export DISABLE_MD_LINTING=1
 export DISABLE_MD_LINK_CHECK=1
 export DISABLE_YAML_LINTING=1
 
-source "$(git rev-parse --show-toplevel)"/vendor/github.com/tektoncd/plumbing/scripts/presubmit-tests.sh
+source "$(git rev-parse --show-toplevel)"/hack/lib/plumbing/scripts/presubmit-tests.sh
 
 function post_build_tests() {
   echo Installing tools from hack/tools.go

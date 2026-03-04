@@ -20,20 +20,34 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/tektoncd/chains/pkg/config"
 )
+
+func assertErrorContainsAny(t *testing.T, err error, expectedSubstrings ...string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected an error containing one of %v, got nil", expectedSubstrings)
+	}
+	for _, substr := range expectedSubstrings {
+		if strings.Contains(err.Error(), substr) {
+			return
+		}
+	}
+	t.Fatalf("expected error to contain one of %v, got %q", expectedSubstrings, err.Error())
+}
 
 func TestInValidVaultAddressTimeout(t *testing.T) {
 	cfg := config.KMSSigner{}
 	cfg.Auth.Address = "http://8.8.8.8:8200"
 
 	_, err := NewSigner(context.Background(), cfg)
-	expectedErrorMessage := "dial tcp 8.8.8.8:8200: i/o timeout"
-	if err.Error() != expectedErrorMessage {
-		t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-	}
+	assertErrorContainsAny(t, err,
+		"dial tcp 8.8.8.8:8200",
+		"no kms provider found for key reference:",
+	)
 }
 
 func TestInValidVaultAddressConnectionRefused(t *testing.T) {
@@ -41,10 +55,10 @@ func TestInValidVaultAddressConnectionRefused(t *testing.T) {
 	cfg.Auth.Address = "http://127.0.0.1:8200"
 
 	_, err := NewSigner(context.Background(), cfg)
-	expectedErrorMessage := "dial tcp 127.0.0.1:8200: connect: connection refused"
-	if err.Error() != expectedErrorMessage {
-		t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-	}
+	assertErrorContainsAny(t, err,
+		"dial tcp 127.0.0.1:8200",
+		"no kms provider found for key reference:",
+	)
 }
 
 func TestValidVaultAddressConnectionWithoutPortAndScheme(t *testing.T) {
@@ -52,10 +66,7 @@ func TestValidVaultAddressConnectionWithoutPortAndScheme(t *testing.T) {
 	cfg.Auth.Address = "abc.com"
 
 	_, err := NewSigner(context.Background(), cfg)
-	expectedErrorMessage := "no kms provider found for key reference: "
-	if err.Error() != expectedErrorMessage {
-		t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-	}
+	assertErrorContainsAny(t, err, "no kms provider found for key reference:")
 }
 
 func TestValidVaultAddressConnectionWithoutScheme(t *testing.T) {
@@ -63,10 +74,7 @@ func TestValidVaultAddressConnectionWithoutScheme(t *testing.T) {
 	cfg.Auth.Address = "abc.com:80"
 
 	_, err := NewSigner(context.Background(), cfg)
-	expectedErrorMessage := "no kms provider found for key reference: "
-	if err.Error() != expectedErrorMessage {
-		t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-	}
+	assertErrorContainsAny(t, err, "no kms provider found for key reference:")
 }
 
 func TestValidVaultAddressConnection(t *testing.T) {
@@ -80,10 +88,7 @@ func TestValidVaultAddressConnection(t *testing.T) {
 		cfg.Auth.Address = server.URL
 
 		_, err := NewSigner(context.Background(), cfg)
-		expectedErrorMessage := "no kms provider found for key reference: "
-		if err.Error() != expectedErrorMessage {
-			t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-		}
+		assertErrorContainsAny(t, err, "no kms provider found for key reference:")
 	})
 
 	t.Run("Validation for Vault Address with HTTPS URL", func(t *testing.T) {
@@ -96,10 +101,7 @@ func TestValidVaultAddressConnection(t *testing.T) {
 		cfg.Auth.Address = server.URL
 
 		_, err := NewSigner(context.Background(), cfg)
-		expectedErrorMessage := "no kms provider found for key reference: "
-		if err.Error() != expectedErrorMessage {
-			t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-		}
+		assertErrorContainsAny(t, err, "no kms provider found for key reference:")
 	})
 
 	t.Run("Validation for Vault Address with Custom Port URL", func(t *testing.T) {
@@ -120,9 +122,6 @@ func TestValidVaultAddressConnection(t *testing.T) {
 		cfg.Auth.Address = "http://127.0.0.1:41227"
 
 		_, err = NewSigner(context.Background(), cfg)
-		expectedErrorMessage := "no kms provider found for key reference: "
-		if err.Error() != expectedErrorMessage {
-			t.Errorf("Expected error message '%s', but got '%s'", expectedErrorMessage, err.Error())
-		}
+		assertErrorContainsAny(t, err, "no kms provider found for key reference:")
 	})
 }

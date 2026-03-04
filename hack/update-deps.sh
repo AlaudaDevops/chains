@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source $(git rev-parse --show-toplevel)/vendor/github.com/tektoncd/plumbing/scripts/library.sh
+source $(git rev-parse --show-toplevel)/hack/lib/plumbing/scripts/library.sh
 
 cd ${REPO_ROOT_DIR}
 

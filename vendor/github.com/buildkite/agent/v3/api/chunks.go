@@ -21,13 +21,15 @@ func (c *Client) UploadChunk(ctx context.Context, jobId string, chunk *Chunk) (*
 	// Create a compressed buffer of the log content
 	body := &bytes.Buffer{}
 	gzipper := gzip.NewWriter(body)
-	gzipper.Write(chunk.Data)
+	if _, err := gzipper.Write(chunk.Data); err != nil {
+		return nil, err
+	}
 	if err := gzipper.Close(); err != nil {
 		return nil, err
 	}
 
 	// Pass most params as query
-	u := fmt.Sprintf("jobs/%s/chunks?sequence=%d&offset=%d&size=%d", jobId, chunk.Sequence, chunk.Offset, chunk.Size)
+	u := fmt.Sprintf("jobs/%s/chunks?sequence=%d&offset=%d&size=%d", railsPathEscape(jobId), chunk.Sequence, chunk.Offset, chunk.Size)
 	req, err := c.newFormRequest(ctx, "POST", u, body)
 	if err != nil {
 		return nil, err

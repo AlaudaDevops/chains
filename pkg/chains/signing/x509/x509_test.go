@@ -49,8 +49,10 @@ const ed25519Priv = `-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEIGQn0bJwshjwuVdnd/FylMk3Gvb89aGgH49bQpgzCY0n
 -----END PRIVATE KEY-----`
 
-// npx jwtgen -a HS256 -s "my-secret" -c "iss=user123" -e 3600
-const token = `eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE2Nzc1NjAyMTgsImV4cCI6MTY3NzU2MzgxOCwiaXNzIjoidXNlcjEyMyJ9.c-sDgCyuZA6VaIGl7Y3-9XxttW1PUkBeNBLE9gCKG8s`
+// Generated with:
+// printf '%s.%s.%s\n' "$(printf '{"alg":"RS256","typ":"JWT"}' | openssl base64 -A | tr '+/' '-_' | tr -d '=')" "$(printf '{"iat":1677560218,"exp":1677563818,"iss":"user123"}' | openssl base64 -A | tr '+/' '-_' | tr -d '=')" "c2ln"
+// This is a syntactically valid RS256 JWT without a "sub" claim.
+const token = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2Nzc1NjAyMTgsImV4cCI6MTY3NzU2MzgxOCwiaXNzIjoidXNlcjEyMyJ9.c2ln`
 
 func TestCreateSignerFulcioEnabled(t *testing.T) {
 	ctx := logtesting.TestContextWithLogger(t)

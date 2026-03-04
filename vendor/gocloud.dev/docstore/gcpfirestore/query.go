@@ -51,7 +51,7 @@ func (c *collection) newDocIterator(ctx context.Context, q *driver.Query) (*docI
 		}
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	sc, err := c.client.RunQuery(ctx, req)
+	sc, err := c.client.RunQuery(withResourceHeader(ctx, c.dbPath), req)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -65,7 +65,7 @@ func (c *collection) newDocIterator(ctx context.Context, q *driver.Query) (*docI
 	}, nil
 }
 
-////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////
 // The code below is adapted from cloud.google.com/go/firestore.
 
 type docIterator struct {
@@ -150,6 +150,17 @@ func evaluateFilter(f driver.Filter, doc driver.Document) bool {
 		return applyComparison(f.Op, strings.Compare(lhs.String(), rhs.String()))
 	}
 
+	if lhs.Kind() == reflect.Bool {
+		if rhs.Kind() != reflect.Bool {
+			return false
+		}
+		cmp := 0
+		if lhs.Bool() != rhs.Bool() {
+			cmp = -1
+		}
+		return applyComparison(f.Op, cmp)
+	}
+
 	cmp, err := driver.CompareNumbers(lhs, rhs)
 	if err != nil {
 		return false
@@ -201,6 +212,11 @@ func (c *collection) queryToProto(q *driver.Query) (*pb.StructuredQuery, []drive
 			p.Select.Fields = append(p.Select.Fields, fieldRef(fp))
 		}
 	}
+	// Apply offset.
+	if q.Offset > 0 {
+		p.Offset = int32(q.Offset)
+	}
+	// Apply limit.
 	if q.Limit > 0 {
 		p.Limit = &wrapperspb.Int32Value{Value: int32(q.Limit)}
 	}
@@ -346,6 +362,10 @@ func newFieldFilter(fp []string, op string, val *pb.Value) (*pb.StructuredQuery_
 		fop = pb.StructuredQuery_FieldFilter_GREATER_THAN_OR_EQUAL
 	case driver.EqualOp:
 		fop = pb.StructuredQuery_FieldFilter_EQUAL
+	case "in":
+		fop = pb.StructuredQuery_FieldFilter_IN
+	case "not-in":
+		fop = pb.StructuredQuery_FieldFilter_NOT_IN
 	// TODO(jba): can we support array-contains portably?
 	// case "array-contains":
 	// 	fop = pb.StructuredQuery_FieldFilter_ARRAY_CONTAINS

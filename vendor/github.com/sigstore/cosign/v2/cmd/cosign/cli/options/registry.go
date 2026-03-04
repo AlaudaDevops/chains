@@ -17,10 +17,12 @@ package options
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	ecr "github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/chrismellard/docker-credential-acr-env/pkg/credhelper"
@@ -44,6 +46,11 @@ type RegistryOptions struct {
 	KubernetesKeychain bool
 	RefOpts            ReferenceOptions
 	Keychain           Keychain
+	AuthConfig         authn.AuthConfig
+	RegistryCACert     string
+	RegistryClientCert string
+	RegistryClientKey  string
+	RegistryServerName string
 
 	// RegistryClientOpts allows overriding the result of GetRegistryClientOpts.
 	RegistryClientOpts []remote.Option
@@ -61,6 +68,30 @@ func (o *RegistryOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&o.KubernetesKeychain, "k8s-keychain", false,
 		"whether to use the kubernetes keychain instead of the default keychain (supports workload identity).")
+
+	cmd.Flags().StringVar(&o.AuthConfig.Username, "registry-username", "",
+		"registry basic auth username")
+
+	cmd.Flags().StringVar(&o.AuthConfig.Password, "registry-password", "",
+		"registry basic auth password")
+
+	cmd.Flags().StringVar(&o.AuthConfig.RegistryToken, "registry-token", "",
+		"registry bearer auth token")
+
+	cmd.Flags().StringVar(&o.RegistryCACert, "registry-cacert", "",
+		"path to the X.509 CA certificate file in PEM format to be used for the connection to the registry")
+	_ = cmd.MarkFlagFilename("registry-cacert", certificateExts...)
+
+	cmd.Flags().StringVar(&o.RegistryClientCert, "registry-client-cert", "",
+		"path to the X.509 certificate file in PEM format to be used for the connection to the registry")
+	_ = cmd.MarkFlagFilename("registry-client-cert", certificateExts...)
+
+	cmd.Flags().StringVar(&o.RegistryClientKey, "registry-client-key", "",
+		"path to the X.509 private key file in PEM format to be used, together with the 'registry-client-cert' value, for the connection to the registry")
+	_ = cmd.MarkFlagFilename("registry-client-key", privateKeyExts...)
+
+	cmd.Flags().StringVar(&o.RegistryServerName, "registry-server-name", "",
+		"SAN name to use as the 'ServerName' tls.Config field to verify the mTLS connection to the registry")
 
 	o.RefOpts.AddFlags(cmd)
 }
@@ -113,12 +144,19 @@ func (o *RegistryOptions) GetRegistryClientOpts(ctx context.Context) []remote.Op
 			github.Keychain,
 		)
 		opts = append(opts, remote.WithAuthFromKeychain(kc))
+	case o.AuthConfig.Username != "" && o.AuthConfig.Password != "":
+		opts = append(opts, remote.WithAuth(&authn.Basic{Username: o.AuthConfig.Username, Password: o.AuthConfig.Password}))
+	case o.AuthConfig.RegistryToken != "":
+		opts = append(opts, remote.WithAuth(&authn.Bearer{Token: o.AuthConfig.RegistryToken}))
 	default:
 		opts = append(opts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	}
 
-	if o.AllowInsecure {
-		opts = append(opts, remote.WithTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}})) // #nosec G402
+	tlsConfig, err := o.getTLSConfig()
+	if err == nil {
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		tr.TLSClientConfig = tlsConfig
+		opts = append(opts, remote.WithTransport(tr))
 	}
 
 	// Reuse a remote.Pusher and a remote.Puller for all operations that use these opts.
@@ -178,4 +216,42 @@ var _ Interface = (*RegistryExperimentalOptions)(nil)
 func (o *RegistryExperimentalOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(&o.RegistryReferrersMode, "registry-referrers-mode",
 		"mode for fetching references from the registry. allowed: legacy, oci-1-1")
+}
+
+func (o *RegistryOptions) getTLSConfig() (*tls.Config, error) {
+	var tlsConfig tls.Config
+
+	if o.RegistryCACert != "" {
+		f, err := os.Open(o.RegistryCACert)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		caCertBytes, err := io.ReadAll(f)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read CA certs from %s: %w", o.RegistryCACert, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caCertBytes) {
+			return nil, fmt.Errorf("no valid CA certs found in %s", o.RegistryCACert)
+		}
+		tlsConfig.RootCAs = pool
+	}
+
+	if o.RegistryClientCert != "" && o.RegistryClientKey != "" {
+		cert, err := tls.LoadX509KeyPair(o.RegistryClientCert, o.RegistryClientKey)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read client certs from cert %s, key %s: %w",
+				o.RegistryClientCert, o.RegistryClientKey, err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	if o.RegistryServerName != "" {
+		tlsConfig.ServerName = o.RegistryServerName
+	}
+
+	tlsConfig.InsecureSkipVerify = o.AllowInsecure // #nosec G402
+
+	return &tlsConfig, nil
 }

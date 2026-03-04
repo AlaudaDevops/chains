@@ -83,6 +83,7 @@ import (
 	"gocloud.dev/internal/useragent"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -98,7 +99,8 @@ func Dial(ctx context.Context, ts gcp.TokenSource) (*vkit.Client, func(), error)
 		useragent.ClientOption("docstore"),
 	}
 	if host := os.Getenv("FIRESTORE_EMULATOR_HOST"); host != "" {
-		conn, err := grpc.DialContext(ctx, host, grpc.WithInsecure())
+		conn, err := grpc.DialContext(ctx, host,
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -149,6 +151,12 @@ func CollectionResourceID(projectID, collPath string) string {
 	return fmt.Sprintf("projects/%s/databases/(default)/documents/%s", projectID, collPath)
 }
 
+// CollectResoureceIDWithDatabase constructs a resource ID for a collection from the project ID, database ID, and the collection path.
+// See the OpenCollection example for use.
+func CollectionResourceIDWithDatabase(projectID, databaseID, collPath string) string {
+	return fmt.Sprintf("projects/%s/databases/%s/documents/%s", projectID, databaseID, collPath)
+}
+
 // OpenCollection creates a *docstore.Collection representing a Firestore collection.
 //
 // collResourceID must be of the form "project/<projectID>/databases/(default)/documents/<collPath>".
@@ -193,7 +201,7 @@ func OpenCollectionWithNameFunc(client *vkit.Client, collResourceID string, name
 	return docstore.NewCollection(c), nil
 }
 
-var resourceIDRE = regexp.MustCompile(`^(projects/[^/]+/databases/\(default\))/documents/.+`)
+var resourceIDRE = regexp.MustCompile(`^(projects/[^/]+/databases/[^/]+)/documents/.+`)
 
 func newCollection(client *vkit.Client, collResourceID, nameField string, nameFunc func(docstore.Document) string, opts *Options) (*collection, error) {
 	if nameField == "" && nameFunc == nil {
@@ -596,7 +604,6 @@ func (c *collection) doCommitCall(ctx context.Context, call *commitCall, errs []
 			j++
 		}
 	}
-	return
 }
 
 func hasFollowingTransform(writes []*pb.Write, i int) bool {
